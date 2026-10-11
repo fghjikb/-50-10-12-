@@ -72,7 +72,33 @@ export const getMistakes = (): MistakeRecord[] => {
   }
 };
 
-export const addMistake = (mistake: Omit<MistakeRecord, 'id' | 'timestamp'>) => {
+export const setAllFavorites = (list: string[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.FAVORITES, JSON.stringify(list));
+  } catch {}
+};
+
+export const setAllMastered = (list: string[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.MASTERED, JSON.stringify(list));
+  } catch {}
+};
+
+export const setAllMistakes = (list: MistakeRecord[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.MISTAKES, JSON.stringify(list));
+  } catch {}
+};
+
+export const setAllQuizHistory = (list: QuizHistoryRecord[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(list));
+  } catch {}
+};
+
+export const addMistake = (
+  mistake: Omit<MistakeRecord, 'id' | 'timestamp'>
+): { next: MistakeRecord[]; created: MistakeRecord } => {
   const current = getMistakes();
   // Don't duplicate exactly same question, update it
   const existingIdx = current.findIndex((m) => m.question === mistake.question);
@@ -93,7 +119,7 @@ export const addMistake = (mistake: Omit<MistakeRecord, 'id' | 'timestamp'>) => 
   try {
     localStorage.setItem(STORAGE_KEYS.MISTAKES, JSON.stringify(next));
   } catch {}
-  return next;
+  return { next, created: newRecord };
 };
 
 export const removeMistake = (id: string): MistakeRecord[] => {
@@ -121,7 +147,9 @@ export const getQuizHistory = (): QuizHistoryRecord[] => {
   }
 };
 
-export const addQuizHistory = (record: Omit<QuizHistoryRecord, 'id' | 'date'>) => {
+export const addQuizHistory = (
+  record: Omit<QuizHistoryRecord, 'id' | 'date'>
+): { next: QuizHistoryRecord[]; created: QuizHistoryRecord } => {
   const current = getQuizHistory();
   const newRecord: QuizHistoryRecord = {
     ...record,
@@ -137,5 +165,6 @@ export const addQuizHistory = (record: Omit<QuizHistoryRecord, 'id' | 'date'>) =
   try {
     localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(next));
   } catch {}
-  return next;
+  return { next, created: newRecord };
 };
+

@@ -1,0 +1,328 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile representing a student or teacher",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique user ID"
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Student login username or ID"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User email address if using Google OAuth"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "User display name or student name"
+        },
+        "seatNumber": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "Student seat number or class number"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student", "admin"],
+          "description": "Role of the user"
+        },
+        "avatarColor": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "UI avatar background color class"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Timestamp when account was created"
+        },
+        "lastLoginAt": {
+          "type": "number",
+          "description": "Timestamp of most recent login"
+        }
+      },
+      "required": ["id", "displayName", "role"]
+    },
+    "StudentAccount": {
+      "title": "StudentAccount",
+      "description": "Teacher-authorized student account with quota and credentials",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Account ID"
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Login account name"
+        },
+        "password": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Access password or login code"
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Student real name"
+        },
+        "seatNumber": {
+          "type": "string",
+          "maxLength": 10,
+          "description": "Class seat number"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student"],
+          "description": "Student role"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Whether the account is currently enabled by teacher"
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Account created timestamp"
+        },
+        "lastLoginAt": {
+          "type": "number",
+          "description": "Last login timestamp"
+        }
+      },
+      "required": ["id", "username", "password", "displayName", "role"]
+    },
+    "ClassSettings": {
+      "title": "ClassSettings",
+      "description": "Class configuration and account quota limit determined by teacher",
+      "type": "object",
+      "properties": {
+        "accountLimit": {
+          "type": "number",
+          "description": "Maximum number of student accounts allowed by teacher"
+        },
+        "className": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Name of the class or cohort"
+        },
+        "teacherName": {
+          "type": "string",
+          "maxLength": 50,
+          "description": "Teacher display name"
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Last updated timestamp"
+        }
+      },
+      "required": ["accountLimit"]
+    },
+    "FavoriteItem": {
+      "title": "FavoriteItem",
+      "description": "A favorited word or item by the user",
+      "type": "object",
+      "properties": {
+        "wordId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Identifier of the word item"
+        },
+        "userId": {
+          "type": "string",
+          "description": "User ID who owns this favorite"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When it was favorited"
+        }
+      },
+      "required": ["wordId", "userId"]
+    },
+    "MasteredItem": {
+      "title": "MasteredItem",
+      "description": "A mastered word or item by the user",
+      "type": "object",
+      "properties": {
+        "wordId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Identifier of the word item"
+        },
+        "userId": {
+          "type": "string",
+          "description": "User ID who mastered this item"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When it was marked mastered"
+        }
+      },
+      "required": ["wordId", "userId"]
+    },
+    "MistakeItem": {
+      "title": "MistakeItem",
+      "description": "A test mistake recorded for a student",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Unique mistake record ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Student user ID"
+        },
+        "sourceId": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Question source item ID"
+        },
+        "question": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Question text"
+        },
+        "userAnswer": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Student chosen wrong answer"
+        },
+        "correctAnswer": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Correct answer"
+        },
+        "explanation": {
+          "type": "string",
+          "maxLength": 1000,
+          "description": "Detailed explanation"
+        },
+        "category": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Question category or topic"
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Unix timestamp in ms"
+        }
+      },
+      "required": ["id", "userId", "question", "userAnswer", "correctAnswer"]
+    },
+    "QuizHistoryItem": {
+      "title": "QuizHistoryItem",
+      "description": "History of a completed quiz session",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 64,
+          "description": "Unique quiz history session ID"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Student user ID"
+        },
+        "date": {
+          "type": "string",
+          "maxLength": 30,
+          "description": "Formatted date string e.g. 10/11 09:30"
+        },
+        "quizType": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Title of the quiz type"
+        },
+        "totalQuestions": {
+          "type": "number",
+          "description": "Total number of questions in quiz"
+        },
+        "score": {
+          "type": "number",
+          "description": "Score obtained"
+        },
+        "percentage": {
+          "type": "number",
+          "description": "Percentage score (0-100)"
+        },
+        "grade": {
+          "type": "string",
+          "enum": ["A++", "A+", "A", "B++", "B+", "B", "C"],
+          "description": "Taiwan standard entrance exam grade level"
+        },
+        "timeSpentSeconds": {
+          "type": "number",
+          "description": "Time spent in seconds"
+        },
+        "timestamp": {
+          "type": "number",
+          "description": "Unix timestamp in ms"
+        }
+      },
+      "required": ["id", "userId", "quizType", "score", "grade"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Admin status marker for authorized teachers",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "User ID of the admin"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Admin user email"
+        }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/accounts/{accountId}": {
+      "schema": { "$ref": "#/entities/StudentAccount" },
+      "description": "Teacher-managed authorized student accounts"
+    },
+    "/classSettings/{configId}": {
+      "schema": { "$ref": "#/entities/ClassSettings" },
+      "description": "Global class settings and quota determined by teacher"
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and active account records"
+    },
+    "/users/{userId}/favorites/{wordId}": {
+      "schema": { "$ref": "#/entities/FavoriteItem" },
+      "description": "Saved favorite words for a user"
+    },
+    "/users/{userId}/mastered/{wordId}": {
+      "schema": { "$ref": "#/entities/MasteredItem" },
+      "description": "Words mastered by a user"
+    },
+    "/users/{userId}/mistakes/{mistakeId}": {
+      "schema": { "$ref": "#/entities/MistakeItem" },
+      "description": "Mistakes logged by a user"
+    },
+    "/users/{userId}/quizHistory/{historyId}": {
+      "schema": { "$ref": "#/entities/QuizHistoryItem" },
+      "description": "Past quiz attempts and grades of a user"
+    },
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "System administrators and teacher accounts"
+    }
+  }
+}

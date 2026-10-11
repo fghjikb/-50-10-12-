@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default safety catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (request.auth.token.email != null && request.auth.token.email == 'mpuwu0825@gmail.com')
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Teacher class settings (account limit, class name)
+    match /classSettings/{configId} {
+      allow read: if true;
+      allow write: if true; // allow teacher/admin config
+    }
+
+    // Teacher authorized student accounts
+    match /accounts/{accountId} {
+      allow read: if true;
+      allow write: if true; // allow teacher account management
+    }
+
+    // User profile and student learning progress
+    match /users/{userId} {
+      allow read: if true;
+      allow write: if true;
+
+      // Subcollections for student personal study data
+      match /favorites/{wordId} {
+        allow read, write: if true;
+      }
+
+      match /mastered/{wordId} {
+        allow read, write: if true;
+      }
+
+      match /mistakes/{mistakeId} {
+        allow read, write: if true;
+      }
+
+      match /quizHistory/{historyId} {
+        allow read, write: if true;
+      }
+    }
+
+    // Admins list
+    match /admins/{adminId} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}
