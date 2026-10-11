@@ -13,6 +13,7 @@ import { FavoritesMode } from './components/FavoritesMode';
 import { PrintSheetModal } from './components/PrintSheetModal';
 import { TeacherDashboardModal } from './components/TeacherDashboardModal';
 import { StudentLoginModal } from './components/StudentLoginModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import { QuizType } from './types';
 import { MistakeRecord, QuizHistoryRecord } from './utils/storage';
 import { useAuth } from './context/AuthContext';
@@ -26,8 +27,11 @@ import {
   deleteMistakeFromFirestore,
   clearAllMistakesInFirestore,
   saveQuizHistoryToFirestore,
+  subscribeClassSettings,
+  fetchClassSettings,
+  ClassSettings,
 } from './services/firebaseService';
-import { ShieldAlert, LogIn, KeyRound } from 'lucide-react';
+import { ShieldAlert, LogIn, Lock, BookOpen } from 'lucide-react';
 
 export default function App() {
   const { currentUser, isFirebaseConnected, logout } = useAuth();
@@ -40,6 +44,9 @@ export default function App() {
   const [mastered, setMastered] = useState<string[]>([]);
   const [mistakes, setMistakes] = useState<MistakeRecord[]>([]);
 
+  // Class settings (quiz locked status, quota)
+  const [classSettings, setClassSettings] = useState<ClassSettings | null>(null);
+
   // Modals
   const [isPrintOpen, setIsPrintOpen] = useState<boolean>(false);
   const [isTeacherDashboardOpen, setIsTeacherDashboardOpen] = useState<boolean>(false);
@@ -47,6 +54,15 @@ export default function App() {
 
   // Custom quiz trigger
   const [quizInitialType, setQuizInitialType] = useState<QuizType>('comprehensive');
+
+  // Realtime subscription to classSettings
+  useEffect(() => {
+    fetchClassSettings().then(setClassSettings);
+    const unsubSettings = subscribeClassSettings((settings) => {
+      setClassSettings(settings);
+    });
+    return () => unsubSettings();
+  }, []);
 
   // Realtime sync with Firestore when currentUser is logged in (No localStorage for educational records!)
   useEffect(() => {
@@ -144,6 +160,29 @@ export default function App() {
     setActiveTab('quiz');
   };
 
+  const isQuizLocked = classSettings?.isQuizLocked || false;
+  const isTeacher = currentUser?.role === 'admin';
+
+  // MANDATORY AUTH GATE: 沒有登入不可以使用
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-stone-900 text-stone-100 flex flex-col font-sans relative overflow-hidden">
+        {/* Decorative background calligraphy */}
+        <div className="absolute inset-0 opacity-5 select-none pointer-events-none flex items-center justify-center font-serif-tc font-black text-[28vw] leading-none text-white">
+          國文
+        </div>
+
+        <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-4 sm:p-6">
+          <StudentLoginModal
+            isOpen={true}
+            onClose={() => {}}
+            isMandatory={true}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-stone-100/70 text-stone-900 flex flex-col font-sans selection:bg-amber-200 selection:text-amber-900">
       {/* Top Header */}
@@ -158,32 +197,16 @@ export default function App() {
         onOpenPrint={() => setIsPrintOpen(true)}
         currentUser={currentUser}
         isFirebaseConnected={isFirebaseConnected}
+        isQuizLocked={isQuizLocked}
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onLogout={logout}
-        onOpenTeacherDashboard={() => setIsTeacherDashboardOpen(true)}
+        onOpenTeacherDashboard={() => {
+          if (isTeacher) setIsTeacherDashboardOpen(true);
+        }}
       />
 
-      {/* Account Requirement Notice if not logged in */}
-      {!currentUser && (
-        <div className="bg-amber-500/10 border-b border-amber-300/60 px-4 py-2.5 text-xs text-amber-950 flex flex-col sm:flex-row items-center justify-between gap-2 print:hidden">
-          <div className="flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
-            <span>
-              <strong>班級專屬管制：</strong>本系統學習記錄與測驗成績存於 Firebase 雲端，請以老師發放之<strong>學生帳號與密碼</strong>登入，確保作答成果不流失。
-            </span>
-          </div>
-          <button
-            onClick={() => setIsLoginModalOpen(true)}
-            className="px-3 py-1 rounded-lg bg-amber-700 hover:bg-amber-800 text-white font-bold transition cursor-pointer shrink-0 flex items-center gap-1 shadow-2xs"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>立即登入帳號</span>
-          </button>
-        </div>
-      )}
-
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-20 md:pb-6">
         {activeTab === 'review' && (
           <ReviewMode
             searchQuery={searchQuery}
@@ -207,6 +230,8 @@ export default function App() {
         {activeTab === 'quiz' && (
           <QuizMode
             initialType={quizInitialType}
+            isQuizLocked={isQuizLocked}
+            isTeacher={isTeacher}
             onGoToReview={() => setActiveTab('review')}
             onGoToMistakes={() => setActiveTab('mistakes')}
             onRecordMistake={handleRecordMistake}
@@ -242,7 +267,7 @@ export default function App() {
             國中教育會考國文科 易寫錯字・常誤用字・形近字口訣・成語美食字音・文言虛詞通假 專題複習系統
           </p>
           <p className="mt-1 text-stone-400">
-            完全遵照課本教材忠實收錄 ｜ 支援自製防猜答虛擬鍵盤、四選一測驗與 Firebase 雲端帳號管理
+            完全遵照課本教材忠實收錄 ｜ 支援田字格手寫作答、自製防猜答虛擬鍵盤與 Firebase 雲端帳號管理
           </p>
         </div>
       </footer>
@@ -253,17 +278,28 @@ export default function App() {
         onClose={() => setIsPrintOpen(false)}
       />
 
-      {/* Teacher & Classroom Dashboard Modal */}
-      <TeacherDashboardModal
-        isOpen={isTeacherDashboardOpen}
-        onClose={() => setIsTeacherDashboardOpen(false)}
-        isFirebaseConnected={isFirebaseConnected}
-      />
+      {/* Teacher & Classroom Dashboard Modal (Admin Only) */}
+      {isTeacher && (
+        <TeacherDashboardModal
+          isOpen={isTeacherDashboardOpen}
+          onClose={() => setIsTeacherDashboardOpen(false)}
+          isFirebaseConnected={isFirebaseConnected}
+        />
+      )}
 
       {/* Student & Teacher Login Modal */}
       <StudentLoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
+      />
+
+      {/* Mobile Sticky Bottom Navigation */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        isQuizLocked={isQuizLocked}
+        mistakeCount={mistakes.length}
+        favoriteCount={favorites.length}
       />
     </div>
   );

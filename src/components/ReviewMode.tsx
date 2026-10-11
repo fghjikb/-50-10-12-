@@ -237,8 +237,32 @@ export const ReviewMode: React.FC<ReviewModeProps> = ({
   return (
     <div className="space-y-6">
       {/* Section Sub-Navigation Tabs */}
-      <div className="bg-white p-2 sm:p-3 rounded-2xl border border-stone-200 shadow-xs flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full md:w-auto scrollbar-none">
+      <div className="bg-white p-2.5 sm:p-3 rounded-2xl border border-stone-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+        {/* Mobile Dropdown Select for Fast Navigation on Phones */}
+        <div className="md:hidden flex items-center gap-2">
+          <label htmlFor="mobile-section-select" className="text-xs font-bold text-stone-600 shrink-0">
+            切換焦點：
+          </label>
+          <select
+            id="mobile-section-select"
+            value={activeSection}
+            onChange={(e) => setActiveSection(e.target.value as any)}
+            className="flex-1 bg-stone-50 border border-stone-300 text-stone-900 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+          >
+            <option value="focus1">焦點一：易寫錯的字與釋義 ({FOCUS_1_ERROR_WORDS.length})</option>
+            <option value="focus2">焦點二：常誤用字辨析 ({FOCUS_2_CONFUSED_WORDS.length})</option>
+            <option value="focus3">焦點三：形近字全集口訣 ({FOCUS_3_SIMILAR_WORDS.length}組)</option>
+            <option value="focus4">焦點四：成語字音精選 ({FOCUS_4_IDIOM_PHONETICS.length})</option>
+            <option value="focus5">焦點五：美食料理讀音 ({FOCUS_5_FOOD_PHONETICS.length})</option>
+            <option value="focus6">焦點六：一字多音破音字 ({FOCUS_6_POLYPHONIC_WORDS.length})</option>
+            <option value="focus7">焦點七：生活與常考語音 ({FOCUS_7_LIFE_PHONETICS.length})</option>
+            <option value="focus8">焦點八：文言虛詞多義 ({FOCUS_8_CLASSICAL_PARTICLES.length})</option>
+            <option value="focus9">焦點九：重要通假字 ({FOCUS_9_LOAN_WORDS.length})</option>
+          </select>
+        </div>
+
+        {/* Desktop / Tablet Horizontal Scroll Tab Bar */}
+        <div className="hidden md:flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 w-full md:w-auto scrollbar-none">
           <button
             onClick={() => setActiveSection('focus1')}
             className={`px-3 py-2 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap flex items-center gap-1.5 ${

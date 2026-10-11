@@ -10,11 +10,13 @@ import {
   CheckCircle2,
   Sparkles,
   Cloud,
+  CloudOff,
   LogIn,
   LogOut,
   Users,
   User as UserIcon,
   KeyRound,
+  Lock,
 } from 'lucide-react';
 import { DATA_STATS } from '../data';
 import { AppUser } from '../services/firebaseService';
@@ -32,6 +34,7 @@ interface HeaderProps {
   onOpenPrint: () => void;
   currentUser: AppUser | null;
   isFirebaseConnected: boolean;
+  isQuizLocked?: boolean;
   onOpenLoginModal: () => void;
   onLogout: () => void;
   onOpenTeacherDashboard: () => void;
@@ -48,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenPrint,
   currentUser,
   isFirebaseConnected,
+  isQuizLocked = false,
   onOpenLoginModal,
   onLogout,
   onOpenTeacherDashboard,
@@ -81,18 +85,16 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick stats, Print, Cloud Sync, and User Account */}
           <div className="flex items-center gap-2 text-xs flex-wrap">
-            {/* Cloud Sync Status */}
-            <div
-              className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold ${
-                isFirebaseConnected
-                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-800'
-                  : 'bg-stone-100 border-stone-200 text-stone-500'
-              }`}
-              title={isFirebaseConnected ? 'Firebase 雲端資料庫已連線' : '本機模式'}
-            >
-              <Cloud className={`w-3.5 h-3.5 ${isFirebaseConnected ? 'text-emerald-600' : 'text-stone-400'}`} />
-              <span>{isFirebaseConnected ? 'Firebase 雲端已連線' : '離線模式'}</span>
-            </div>
+            {/* Show Cloud Offline Warning ONLY when NOT connected (firebase已連線不用顯示，沒有連線再顯示就好) */}
+            {!isFirebaseConnected && (
+              <div
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold bg-rose-50 border-rose-200 text-rose-700"
+                title="目前離線，無法同步至雲端"
+              >
+                <CloudOff className="w-3.5 h-3.5 text-rose-600" />
+                <span>雲端未連線</span>
+              </div>
+            )}
 
             <div className="hidden lg:flex items-center gap-3 bg-stone-50 px-3 py-1.5 rounded-lg border border-stone-200">
               <span className="flex items-center text-stone-600">
@@ -120,15 +122,17 @@ export const Header: React.FC<HeaderProps> = ({
               <span className="hidden sm:inline">列印考卷/講義</span>
             </button>
 
-            {/* Teacher Dashboard trigger */}
-            <button
-              onClick={onOpenTeacherDashboard}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50/80 hover:bg-amber-100/80 text-amber-900 font-bold transition cursor-pointer"
-              title="查看全班學習進度與帳號管理"
-            >
-              <Users className="w-4 h-4 text-amber-700" />
-              <span>教學管理與名冊</span>
-            </button>
+            {/* Teacher Dashboard trigger (Admin Only: 學生不可以更改教學管理名冊) */}
+            {currentUser?.role === 'admin' && (
+              <button
+                onClick={onOpenTeacherDashboard}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-300 bg-amber-50/80 hover:bg-amber-100/80 text-amber-900 font-bold transition cursor-pointer"
+                title="查看全班學習進度與帳號管理"
+              >
+                <Users className="w-4 h-4 text-amber-700" />
+                <span>教學管理與名冊</span>
+              </button>
+            )}
 
             {/* User Account / Student Sign In */}
             {currentUser ? (
@@ -210,13 +214,13 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
 
-        {/* Navigation Tabs and Search */}
+        {/* Navigation Tabs (desktop only, mobile uses bottom sticky nav) and Search */}
         <div className="mt-3 pt-2 border-t border-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <nav className="flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
+          <nav className="hidden md:flex items-center gap-1 overflow-x-auto pb-1 md:pb-0 scrollbar-none">
             {[
               { id: 'review', label: '教材精讀總覽', icon: BookOpen },
               { id: 'flashcards', label: '字卡翻牌背誦', icon: Layers },
-              { id: 'quiz', label: '會考全真測驗', icon: HelpCircle },
+              { id: 'quiz', label: '會考全真測驗', icon: HelpCircle, isLocked: isQuizLocked },
               { id: 'mistakes', label: '錯題本解析', icon: Bookmark, badge: mistakeCount },
               { id: 'favorites', label: '精選標記', icon: Star, badge: favoriteCount },
             ].map((tab) => {
@@ -234,6 +238,12 @@ export const Header: React.FC<HeaderProps> = ({
                 >
                   <Icon className="w-4 h-4" />
                   <span>{tab.label}</span>
+                  {tab.isLocked && (
+                    <span className="text-[10px] px-1 py-0.2 rounded bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-0.5">
+                      <Lock className="w-2.5 h-2.5" />
+                      管制中
+                    </span>
+                  )}
                   {tab.badge !== undefined && tab.badge > 0 && (
                     <span
                       className={`ml-1 text-[10px] px-1.5 py-0.2 rounded-full font-bold ${

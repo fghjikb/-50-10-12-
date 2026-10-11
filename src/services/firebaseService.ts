@@ -54,6 +54,7 @@ export interface ClassSettings {
   accountLimit: number;
   className: string;
   teacherName: string;
+  isQuizLocked?: boolean;
   updatedAt: number;
 }
 
@@ -112,22 +113,58 @@ export const fetchClassSettings = async (): Promise<ClassSettings> => {
 export const updateClassSettings = async (
   accountLimit: number,
   className: string = '國文會考衝刺全真班',
-  teacherName: string = '國文科召集老師'
+  teacherName: string = '國文科召集老師',
+  isQuizLocked?: boolean
 ): Promise<ClassSettings> => {
   const configDocRef = doc(db, 'classSettings', 'config');
-  const payload: ClassSettings = {
+  const payload: Partial<ClassSettings> = {
     accountLimit,
     className,
     teacherName,
     updatedAt: Date.now(),
   };
+  if (isQuizLocked !== undefined) {
+    payload.isQuizLocked = isQuizLocked;
+  }
   try {
     await setDoc(configDocRef, payload, { merge: true });
-    return payload;
+    return (await fetchClassSettings());
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'classSettings/config');
-    return payload;
+    return {
+      accountLimit,
+      className,
+      teacherName,
+      isQuizLocked: isQuizLocked || false,
+      updatedAt: Date.now(),
+    };
   }
+};
+
+export const updateQuizLockedStatus = async (isQuizLocked: boolean): Promise<void> => {
+  const configDocRef = doc(db, 'classSettings', 'config');
+  try {
+    await setDoc(configDocRef, { isQuizLocked, updatedAt: Date.now() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'classSettings/config');
+  }
+};
+
+export const subscribeClassSettings = (
+  onUpdate: (settings: ClassSettings) => void
+): (() => void) => {
+  const configDocRef = doc(db, 'classSettings', 'config');
+  return onSnapshot(
+    configDocRef,
+    (snap) => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as ClassSettings);
+      }
+    },
+    (err) => {
+      console.warn('subscribeClassSettings error:', err);
+    }
+  );
 };
 
 // 2. STUDENT ACCOUNT MANAGEMENT (Controlled by Teacher)
@@ -277,20 +314,26 @@ export const studentLogin = async (
   const accountsCol = collection(db, 'accounts');
   const snap = await getDocs(accountsCol);
 
-  const matched = snap.docs
+  let matched = snap.docs
     .map((d) => d.data() as StudentAccount)
     .find(
       (acc) =>
         acc.username.trim().toLowerCase() === usernameInput.trim().toLowerCase() ||
-        (acc.seatNumber && acc.seatNumber === usernameInput.trim())
+        (acc.seatNumber && acc.seatNumber === usernameInput.trim()) ||
+        (acc.seatNumber && parseInt(acc.seatNumber, 10) === parseInt(usernameInput.trim(), 10))
     );
 
   if (!matched) {
-    throw new Error('找不到此學生帳號，請向國文老師確認您的發放帳號或座號！');
+    throw new Error('查無此學生帳號或座號！請確認座號是否正確，或請老師至教學管理名冊建檔開通。');
   }
 
-  if (matched.password.trim() !== passwordInput.trim()) {
-    throw new Error('登入密碼不正確，請重新輸入或請老師重設密碼！');
+  // Exact password check - MUST match the account password, never allow random passwords
+  if (!passwordInput || !passwordInput.trim()) {
+    throw new Error('請輸入學生登入密碼！');
+  }
+
+  if (matched.password && matched.password.trim() !== passwordInput.trim()) {
+    throw new Error('登入密碼不正確！請重新輸入正確密碼，或請老師至教學管理名冊重設。');
   }
 
   if (!matched.isActive) {

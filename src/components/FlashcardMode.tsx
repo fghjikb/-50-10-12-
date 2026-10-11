@@ -243,7 +243,32 @@ export const FlashcardMode: React.FC<FlashcardModeProps> = ({
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       {/* Category selector */}
-      <div className="bg-white p-2 rounded-2xl border border-stone-200 shadow-xs flex items-center justify-between gap-1 overflow-x-auto scrollbar-none">
+      <div className="bg-white p-2 sm:p-2.5 rounded-2xl border border-stone-200 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2">
+        {/* Mobile Dropdown for phones */}
+        <div className="md:hidden flex items-center gap-2">
+          <label htmlFor="flashcard-category-select" className="text-xs font-bold text-stone-600 shrink-0">
+            卡片分類：
+          </label>
+          <select
+            id="flashcard-category-select"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="flex-1 bg-stone-50 border border-stone-300 text-stone-900 text-xs font-bold rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600"
+          >
+            <option value="focus1">易寫錯字形 ({FOCUS_1_ERROR_WORDS.length})</option>
+            <option value="focus2">誤用字辨析 ({FOCUS_2_CONFUSED_WORDS.length})</option>
+            <option value="focus3">形近字口訣 ({FOCUS_3_SIMILAR_WORDS.length}組)</option>
+            <option value="focus4">成語易誤讀 ({FOCUS_4_IDIOM_PHONETICS.length})</option>
+            <option value="focus5">美食料理音 ({FOCUS_5_FOOD_PHONETICS.length})</option>
+            <option value="focus6">一字多音字 ({FOCUS_6_POLYPHONIC_WORDS.length})</option>
+            <option value="focus7">生活常考音 ({FOCUS_7_LIFE_PHONETICS.length})</option>
+            <option value="focus8">文言虛詞 ({FOCUS_8_CLASSICAL_PARTICLES.length})</option>
+            <option value="focus9">重要通假字 ({FOCUS_9_LOAN_WORDS.length})</option>
+          </select>
+        </div>
+
+        {/* Desktop / Tablet tab buttons */}
+        <div className="hidden md:flex items-center justify-between gap-1 overflow-x-auto scrollbar-none w-full">
         <button
           onClick={() => setCategory('focus1')}
           className={`px-3 py-1.5 rounded-xl text-xs sm:text-sm font-bold transition cursor-pointer whitespace-nowrap ${
@@ -316,6 +341,7 @@ export const FlashcardMode: React.FC<FlashcardModeProps> = ({
         >
           重要通假字
         </button>
+        </div>
       </div>
 
       {/* Progress & Top Bar */}

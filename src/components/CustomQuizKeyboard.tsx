@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { Delete, RotateCcw, Check, ArrowRight, Keyboard as KeyboardIcon, Languages } from 'lucide-react';
-import { FOCUS_1_ERROR_WORDS, FOCUS_2_CONFUSED_WORDS, FOCUS_3_SIMILAR_WORDS, FOCUS_4_IDIOM_PHONETICS, FOCUS_5_FOOD_PHONETICS } from '../data';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Delete, RotateCcw, Check, Keyboard as KeyboardIcon, Sparkles } from 'lucide-react';
+import { FOCUS_2_CONFUSED_WORDS, FOCUS_3_SIMILAR_WORDS } from '../data';
 
 interface CustomQuizKeyboardProps {
   mode: 'char' | 'zhuyin';
@@ -27,14 +27,14 @@ const ZHUYIN_TONES = [
 // Common high-frequency distractor characters in Chinese entrance exams
 const COMMON_DISTRACTOR_CHARS = [
   '抱', '暴', '報', '豹', '鮑', '瀑', '爆', '跋', '拔', '撥', '駁', '波', '婆', '坡', '破',
-  '璧', '壁', '璧', '碧', '避', '闢', '僻', '癖', '卑', '埤', '脾', '牌', '俾', '婢', '稗',
-  '部', '步', '簿', '佈', '捕', '哺', '埔', '溥', '補', '樸', '僕', '撲', '璞', '噗', '瀑',
+  '璧', '壁', '碧', '避', '闢', '僻', '癖', '卑', '埤', '脾', '牌', '俾', '婢', '稗',
+  '部', '步', '簿', '佈', '捕', '哺', '埔', '溥', '補', '樸', '僕', '撲', '璞', '噗',
   '幅', '輻', '蝠', '福', '富', '副', '符', '付', '附', '府', '俯', '撫', '腑', '腐', '負',
-  '度', '渡', '鍍', '踱', '鐸', '舵', '惰', '墮', '舵', '妥', '橢', '唾', '拓', '魄', '落',
+  '度', '渡', '鍍', '踱', '鐸', '惰', '墮', '舵', '妥', '橢', '唾', '拓', '魄', '落',
   '戊', '戌', '戍', '戎', '戒', '式', '貳', '戈', '弋', '矛', '戔', '或', '咸', '戚', '截',
-  '蜜', '密', '秘', '冪', '謐', '灸', '炙', '灸', '災', '炎', '疚', '咎', '究', '糾', '赳',
-  '汆', '汆', '水', '油', '炸', '烹', '煮', '蒸', '燉', '燜', '燴', '燙', '炙', '膾', '炙',
-  '板', '版', '闆', '販', '反', '飯', '返', '扳', '阪', '坂', '販', '叛', '伴', '拌', '絆',
+  '蜜', '密', '秘', '冪', '謐', '灸', '炙', '災', '炎', '疚', '咎', '究', '糾', '赳',
+  '汆', '水', '油', '炸', '烹', '煮', '蒸', '燉', '燜', '燴', '燙', '膾',
+  '板', '版', '闆', '反', '飯', '返', '扳', '阪', '坂', '販', '叛', '伴', '拌', '絆',
 ];
 
 export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
@@ -47,6 +47,7 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
   disabled = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'char' | 'zhuyin'>(initialMode);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Sync tab with initial mode when question changes
   useEffect(() => {
@@ -102,6 +103,15 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
     onInputChange('');
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (currentInput.trim()) {
+        onSubmit();
+      }
+    }
+  };
+
   return (
     <div className="w-full bg-stone-100 rounded-2xl p-3 sm:p-4 border border-stone-200 shadow-inner select-none animate-fade-in">
       {/* Keyboard Header / Mode Tabs */}
@@ -110,7 +120,7 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
           <KeyboardIcon className="w-4 h-4 text-amber-700" />
           <span className="text-xs font-bold text-stone-700">自製防猜答虛擬鍵盤</span>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-semibold border border-amber-200">
-            無選字提示・防作弊
+            可點擊按鍵或鍵盤直接打字
           </span>
         </div>
 
@@ -124,7 +134,7 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
                 : 'text-stone-600 hover:text-stone-900'
             }`}
           >
-            <span>國字鍵盤</span>
+            <span>國字矩陣</span>
           </button>
           <button
             type="button"
@@ -140,43 +150,53 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
         </div>
       </div>
 
-      {/* Answer Preview Box */}
-      <div className="mb-3 flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-stone-200 shadow-2xs">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-stone-400">目前輸入：</span>
-          <span className="font-serif-tc font-black text-xl text-amber-900 tracking-wider min-h-[1.75rem] inline-block">
-            {currentInput || <span className="text-stone-300 italic font-sans font-normal text-sm">請點選下方按鍵輸入...</span>}
-          </span>
+      {/* Answer Input Box: Both interactive input AND preview */}
+      <div className="mb-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 bg-white p-2.5 rounded-xl border border-stone-300 shadow-2xs">
+        <div className="flex-1 flex items-center gap-2">
+          <label htmlFor="quiz-answer-input" className="text-xs font-bold text-stone-500 shrink-0">
+            作答輸入：
+          </label>
+          <input
+            id="quiz-answer-input"
+            ref={inputRef}
+            type="text"
+            value={currentInput}
+            onChange={(e) => onInputChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={disabled}
+            placeholder="點選下方按鍵或由鍵盤直接輸入..."
+            className="flex-1 py-1.5 px-2 bg-stone-50 hover:bg-white focus:bg-white border border-stone-200 focus:border-amber-600 rounded-lg text-lg font-bold font-serif-tc text-amber-950 tracking-wider outline-hidden transition"
+          />
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-end gap-1.5 shrink-0">
           <button
             type="button"
             disabled={disabled || !currentInput}
             onClick={handleBackspace}
-            className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 disabled:opacity-40 transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
+            className="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-40 transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
             title="倒退刪除"
           >
             <Delete className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">倒退</span>
+            <span>倒退</span>
           </button>
 
           <button
             type="button"
             disabled={disabled || !currentInput}
             onClick={handleClear}
-            className="p-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-600 disabled:opacity-40 transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
+            className="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 disabled:opacity-40 transition cursor-pointer flex items-center gap-1 text-xs font-semibold"
             title="清除全部"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">清空</span>
+            <span>清空</span>
           </button>
 
           <button
             type="button"
             disabled={disabled || !currentInput.trim()}
             onClick={onSubmit}
-            className="px-3 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 disabled:bg-stone-300 text-white font-bold transition cursor-pointer flex items-center gap-1 text-xs shadow-xs"
+            className="px-3.5 py-1.5 rounded-lg bg-amber-700 hover:bg-amber-800 disabled:bg-stone-300 text-white font-bold transition cursor-pointer flex items-center gap-1 text-xs shadow-xs"
           >
             <Check className="w-3.5 h-3.5" />
             <span>送出作答</span>
@@ -187,14 +207,14 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
       {/* 1. HANZI MATRIX KEYBOARD */}
       {activeTab === 'char' && (
         <div className="space-y-2">
-          <div className="grid grid-cols-6 sm:grid-cols-9 gap-1.5">
+          <div className="grid grid-cols-6 sm:grid-cols-9 gap-1.5 sm:gap-2">
             {charPool.map((char, idx) => (
               <button
                 key={`${char}-${idx}`}
                 type="button"
                 disabled={disabled}
                 onClick={() => handleCharClick(char)}
-                className="h-11 sm:h-12 rounded-xl bg-white hover:bg-amber-50 active:bg-amber-100 border border-stone-200/90 hover:border-amber-400 font-serif-tc font-bold text-lg sm:text-xl text-stone-900 shadow-2xs hover:shadow-xs transition transform active:scale-95 cursor-pointer flex items-center justify-center"
+                className="h-12 sm:h-13 rounded-xl bg-white hover:bg-amber-50 active:bg-amber-200 border border-stone-200 hover:border-amber-400 font-serif-tc font-bold text-xl text-stone-900 shadow-2xs hover:shadow-xs transition transform active:scale-90 cursor-pointer flex items-center justify-center touch-manipulation"
               >
                 {char}
               </button>
@@ -202,7 +222,7 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
           </div>
 
           <p className="text-[11px] text-stone-500 text-center pt-1">
-            提示：本鍵盤隨機混入形近字與同音字，請確實辨識正確國字點選。
+            提示：本矩陣混入高頻形近字與同音字，可直接點選或使用電腦／手機鍵盤輸入。
           </p>
         </div>
       )}
@@ -213,14 +233,14 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
           {/* Consonants */}
           <div className="bg-white p-2 rounded-xl border border-stone-200">
             <div className="text-[10px] font-bold text-stone-400 mb-1">聲母 (21個)</div>
-            <div className="grid grid-cols-7 sm:grid-cols-11 gap-1">
+            <div className="grid grid-cols-7 sm:grid-cols-11 gap-1 sm:gap-1.5">
               {ZHUYIN_CONSONANTS.map((zh) => (
                 <button
                   key={zh}
                   type="button"
                   disabled={disabled}
                   onClick={() => handleCharClick(zh)}
-                  className="h-9 sm:h-10 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200 font-bold text-base text-stone-800 shadow-2xs transition active:scale-95 cursor-pointer flex items-center justify-center font-serif-tc"
+                  className="h-10 sm:h-11 rounded-lg bg-stone-50 hover:bg-amber-50 active:bg-amber-200 border border-stone-200 font-bold text-base text-stone-800 shadow-2xs transition active:scale-90 cursor-pointer flex items-center justify-center font-serif-tc touch-manipulation"
                 >
                   {zh}
                 </button>
@@ -231,14 +251,14 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
           {/* Medials and Rhymes */}
           <div className="bg-white p-2 rounded-xl border border-stone-200">
             <div className="text-[10px] font-bold text-stone-400 mb-1">介音與韻母 (16個)</div>
-            <div className="grid grid-cols-8 sm:grid-cols-8 gap-1">
+            <div className="grid grid-cols-8 sm:grid-cols-8 gap-1 sm:gap-1.5">
               {[...ZHUYIN_MEDIALS, ...ZHUYIN_RHYMES].map((zh) => (
                 <button
                   key={zh}
                   type="button"
                   disabled={disabled}
                   onClick={() => handleCharClick(zh)}
-                  className="h-9 sm:h-10 rounded-lg bg-stone-50 hover:bg-amber-50 border border-stone-200 font-bold text-base text-stone-800 shadow-2xs transition active:scale-95 cursor-pointer flex items-center justify-center font-serif-tc"
+                  className="h-10 sm:h-11 rounded-lg bg-stone-50 hover:bg-amber-50 active:bg-amber-200 border border-stone-200 font-bold text-base text-stone-800 shadow-2xs transition active:scale-90 cursor-pointer flex items-center justify-center font-serif-tc touch-manipulation"
                 >
                   {zh}
                 </button>
@@ -256,7 +276,7 @@ export const CustomQuizKeyboard: React.FC<CustomQuizKeyboardProps> = ({
                   type="button"
                   disabled={disabled}
                   onClick={() => handleCharClick(tone.value)}
-                  className="h-9 rounded-lg bg-amber-50 hover:bg-amber-100 border border-amber-200 font-bold text-xs text-amber-950 shadow-2xs transition active:scale-95 cursor-pointer flex items-center justify-center"
+                  className="h-10 rounded-lg bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200 font-bold text-xs text-amber-950 shadow-2xs transition active:scale-90 cursor-pointer flex items-center justify-center touch-manipulation"
                 >
                   {tone.label}
                 </button>

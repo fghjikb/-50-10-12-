@@ -119,6 +119,10 @@
           "maxLength": 50,
           "description": "Teacher display name"
         },
+        "isQuizLocked": {
+          "type": "boolean",
+          "description": "Whether quiz feature is locked/disabled by teacher"
+        },
         "updatedAt": {
           "type": "number",
           "description": "Last updated timestamp"

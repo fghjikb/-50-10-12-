@@ -12,6 +12,11 @@ import {
   Keyboard as KeyboardIcon,
   CheckCircle2,
   Check,
+  PenTool,
+  Lock,
+  Eye,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import { QuizType } from '../types';
 import { generateQuizQuestions, QuizQuestion } from '../utils/quizGenerator';
@@ -19,30 +24,37 @@ import { triggerSuccessConfetti, triggerPerfectConfetti } from '../utils/confett
 import { speakText } from '../utils/speech';
 import { addMistake, addQuizHistory, MistakeRecord, QuizHistoryRecord } from '../utils/storage';
 import { CustomQuizKeyboard } from './CustomQuizKeyboard';
+import { HandwritingCanvas } from './HandwritingCanvas';
 
 interface QuizModeProps {
   onGoToReview: () => void;
   onGoToMistakes: () => void;
   initialType?: QuizType;
+  isQuizLocked?: boolean;
+  isTeacher?: boolean;
   onRecordMistake?: (mistake: MistakeRecord) => void;
   onSaveQuizHistory?: (record: QuizHistoryRecord) => void;
 }
 
 export type QuestionFormatMode = 'choice' | 'non_choice';
+export type NonChoiceInputStyle = 'handwriting' | 'keyboard';
 
 export const QuizMode: React.FC<QuizModeProps> = ({
   onGoToReview,
   onGoToMistakes,
   initialType = 'comprehensive',
+  isQuizLocked = false,
+  isTeacher = false,
   onRecordMistake,
   onSaveQuizHistory,
 }) => {
   // Config states
   const [quizType, setQuizType] = useState<QuizType>(initialType);
   const [questionFormatMode, setQuestionFormatMode] = useState<QuestionFormatMode>('non_choice');
+  const [nonChoiceInputStyle, setNonChoiceInputStyle] = useState<NonChoiceInputStyle>('handwriting');
   const [questionCount, setQuestionCount] = useState<number>(20);
   const [timerEnabled, setTimerEnabled] = useState<boolean>(true);
-  const [secondsPerQuestion] = useState<number>(20);
+  const [secondsPerQuestion] = useState<number>(25);
 
   // Active quiz states
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -51,6 +63,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [customKeypadInput, setCustomKeypadInput] = useState<string>('');
   const [isAnswered, setIsAnswered] = useState<boolean>(false);
+  const [isWaitingHandwritingVerification, setIsWaitingHandwritingVerification] = useState<boolean>(false);
   const [score, setScore] = useState<number>(0);
   const [userAnswers, setUserAnswers] = useState<{
     question: QuizQuestion;
@@ -78,6 +91,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({
     setSelectedOption(null);
     setCustomKeypadInput('');
     setIsAnswered(false);
+    setIsWaitingHandwritingVerification(false);
     setScore(0);
     setUserAnswers([]);
     setTotalTimeSpent(0);
@@ -88,12 +102,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({
 
   // Timer countdown hook
   useEffect(() => {
-    if (!isPlaying || isFinished || isAnswered || !timerEnabled) return;
+    if (!isPlaying || isFinished || isAnswered || isWaitingHandwritingVerification || !timerEnabled) return;
 
     timerRef.current = window.setInterval(() => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
-          // Timeout, auto answer wrong
           handleProcessAnswer('（逾時未作答）', true);
           return 0;
         }
@@ -105,9 +118,9 @@ export const QuizMode: React.FC<QuizModeProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPlaying, isFinished, isAnswered, timerEnabled, currentIndex]);
+  }, [isPlaying, isFinished, isAnswered, isWaitingHandwritingVerification, timerEnabled, currentIndex]);
 
-  // Normalize string for answer comparison (removes extra spaces, punctuation)
+  // Normalize string for answer comparison
   const normalizeAnswer = (s: string) => {
     return s.trim().replace(/[\s\(\)（）]/g, '');
   };
@@ -126,11 +139,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({
 
     setSelectedOption(ans);
     setIsAnswered(true);
+    setIsWaitingHandwritingVerification(false);
 
     if (isCorrect) {
       setScore((s) => s + 1);
     } else {
-      // Record mistake
       const { created } = addMistake({
         sourceId: currentQ.sourceId,
         question: currentQ.prompt + (currentQ.subPrompt ? ` (${currentQ.subPrompt})` : ''),
@@ -152,15 +165,30 @@ export const QuizMode: React.FC<QuizModeProps> = ({
     ]);
   };
 
-  // Handle option click in Choice mode
+  // Choice mode submit
   const handleSelectChoiceOption = (option: string) => {
     handleProcessAnswer(option, false);
   };
 
-  // Handle submit in Non-Choice mode
+  // Keypad submit
   const handleCustomKeypadSubmit = () => {
     if (!customKeypadInput.trim()) return;
     handleProcessAnswer(customKeypadInput.trim(), false);
+  };
+
+  // Handwriting submit: pauses timer and prompts for self-verification against standard font
+  const handleHandwritingSubmitted = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setIsWaitingHandwritingVerification(true);
+  };
+
+  const handleConfirmHandwritingSelfCheck = (selfReportedCorrect: boolean) => {
+    const currentQ = questions[currentIndex];
+    if (selfReportedCorrect) {
+      handleProcessAnswer(currentQ.correctAnswer, false);
+    } else {
+      handleProcessAnswer('（手寫字形筆劃有誤）', false);
+    }
   };
 
   // Move to next question or finish
@@ -170,6 +198,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({
       setSelectedOption(null);
       setCustomKeypadInput('');
       setIsAnswered(false);
+      setIsWaitingHandwritingVerification(false);
       setTimeLeft(secondsPerQuestion);
     } else {
       finishQuiz();
@@ -185,7 +214,6 @@ export const QuizMode: React.FC<QuizModeProps> = ({
     const finalScore = score;
     const pct = Math.round((finalScore / total) * 100);
 
-    // Grade classification
     let grade = 'C';
     if (pct >= 95) grade = 'A++';
     else if (pct >= 90) grade = 'A+';
@@ -194,7 +222,12 @@ export const QuizMode: React.FC<QuizModeProps> = ({
     else if (pct >= 70) grade = 'B+';
     else if (pct >= 60) grade = 'B';
 
-    const modeName = questionFormatMode === 'non_choice' ? '【非選・自製鍵盤】' : '【四選一】';
+    const modeName =
+      questionFormatMode === 'non_choice'
+        ? nonChoiceInputStyle === 'handwriting'
+          ? '【非選・田字手寫】'
+          : '【非選・自製鍵盤】'
+        : '【四選一】';
 
     const { created: historyCreated } = addQuizHistory({
       quizType: `${modeName} ${getQuizTypeName(quizType)}`,
@@ -232,9 +265,35 @@ export const QuizMode: React.FC<QuizModeProps> = ({
     }
   };
 
+  // Locked Quiz Gate (增加把測驗功能關起來模式)
+  if (isQuizLocked && !isTeacher) {
+    return (
+      <div className="max-w-2xl mx-auto py-12 px-6 text-center bg-white rounded-3xl border border-stone-200 shadow-xs space-y-5 animate-fade-in">
+        <div className="w-16 h-16 rounded-3xl bg-rose-100 text-rose-700 flex items-center justify-center mx-auto shadow-xs">
+          <Lock className="w-8 h-8" />
+        </div>
+        <div>
+          <h3 className="text-2xl font-bold text-stone-900 font-serif-tc">
+            會考測驗功能目前由老師管制關閉中
+          </h3>
+          <p className="text-sm text-stone-600 mt-2 max-w-md mx-auto leading-relaxed">
+            任課老師目前已暫時鎖定測驗功能。請依照課堂指示進行<strong>「教材精讀總覽」</strong>或<strong>「字卡翻牌背誦」</strong>，待老師解鎖開放後即可進行測驗！
+          </p>
+        </div>
+        <div className="pt-2">
+          <button
+            onClick={onGoToReview}
+            className="px-6 py-3 rounded-2xl bg-amber-700 hover:bg-amber-800 text-white font-bold text-sm shadow-sm transition cursor-pointer"
+          >
+            前往教材精讀總覽
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const currentQ = questions[currentIndex];
 
-  // Helper to determine if current question is phonetic (Zhuyin) or character
   const isPhoneticQuestion = currentQ
     ? currentQ.category?.includes('字音') ||
       currentQ.category?.includes('讀音') ||
@@ -254,16 +313,24 @@ export const QuizMode: React.FC<QuizModeProps> = ({
               <HelpCircle className="w-6 h-6" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-stone-900 tracking-tight font-serif-tc">
-                國文會考全真測驗模式
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-xl font-bold text-stone-900 tracking-tight font-serif-tc">
+                  國文會考全真測驗模式
+                </h2>
+                {isQuizLocked && isTeacher && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-bold border border-rose-300 flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    學生端已鎖定關閉中 (教師預覽)
+                  </span>
+                )}
+              </div>
               <p className="text-xs sm:text-sm text-stone-500">
-                完整收錄課本字音字形註釋題目，支援自製防作弊虛擬鍵盤與四選一測驗
+                收錄完整會考題目，支援「田字格手寫作答」、「自製防作弊虛擬鍵盤」與「四選一測驗」
               </p>
             </div>
           </div>
 
-          {/* TWO MAJOR QUESTION FORMAT TYPES (User requested: 分成不要選擇跟選擇兩種類型) */}
+          {/* TWO MAJOR QUESTION FORMAT TYPES */}
           <div className="mt-6 space-y-3">
             <label className="text-xs font-bold uppercase tracking-wider text-amber-900 flex items-center gap-1.5">
               <KeyboardIcon className="w-4 h-4 text-amber-700" />
@@ -271,7 +338,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({
             </label>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {/* Option A: Non-Choice Custom Keyboard */}
+              {/* Option A: Non-Choice */}
               <button
                 type="button"
                 onClick={() => setQuestionFormatMode('non_choice')}
@@ -286,15 +353,15 @@ export const QuizMode: React.FC<QuizModeProps> = ({
                     非選擇題型
                   </span>
                   <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-600 text-white shadow-2xs">
-                    自製鍵盤填空 ★ 推薦
+                    手寫板 / 自製鍵盤 ★ 推薦
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-stone-600 leading-relaxed">
-                  避免同學因為選字或輸入法聯想猜答案！使用系統<strong>自製無提示鍵盤</strong>點選正確國字或注音作答。
+                  避免同學透過輸入法選字猜答案！支援<strong>「田字格手寫板」</strong>筆畫書寫與<strong>「自製無提示鍵盤」</strong>。
                 </p>
                 <div className="mt-2.5 pt-2 border-t border-amber-200/50 text-[11px] font-semibold text-amber-800 flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5 text-amber-700" />
-                  防猜答・精準測驗實力
+                  防猜答・支援手指觸控書寫
                 </div>
               </button>
 
@@ -313,20 +380,56 @@ export const QuizMode: React.FC<QuizModeProps> = ({
                     四選一選擇題型
                   </span>
                   <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-stone-200 text-stone-700">
-                    標準會考單選
+                    標準單選
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-stone-600 leading-relaxed">
-                  傳統 ABCD 四選項作答模式，適合初學打底與快速瀏覽考題方向。
+                  傳統 ABCD 四選項作答模式，適合初學打底與快速考點檢閱。
                 </p>
-                <div className="mt-2.5 pt-2 border-t border-stone-200/50 text-[11px] font-semibold text-stone-500 flex items-center gap-1">
+                <div className="mt-2.5 pt-2 border-stone-200/50 text-[11px] font-semibold text-stone-500 flex items-center gap-1">
                   <span>快速作答・打底練習</span>
                 </div>
               </button>
             </div>
           </div>
 
-          {/* Quiz Topics / Focus Categories */}
+          {/* Sub-choice for Non-choice: Handwriting vs Keyboard */}
+          {questionFormatMode === 'non_choice' && (
+            <div className="mt-4 p-3 bg-amber-100/60 rounded-2xl border border-amber-200 flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
+                <PenTool className="w-4 h-4 text-amber-800" />
+                <span>非選作答偏好方式：</span>
+              </span>
+              <div className="flex gap-1.5 bg-white p-1 rounded-xl border border-amber-200 text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setNonChoiceInputStyle('handwriting')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    nonChoiceInputStyle === 'handwriting'
+                      ? 'bg-amber-700 text-white shadow-2xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <PenTool className="w-3.5 h-3.5" />
+                  <span>田字格手寫作答</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNonChoiceInputStyle('keyboard')}
+                  className={`px-3 py-1.5 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                    nonChoiceInputStyle === 'keyboard'
+                      ? 'bg-amber-700 text-white shadow-2xs'
+                      : 'text-stone-600 hover:text-stone-900'
+                  }`}
+                >
+                  <KeyboardIcon className="w-3.5 h-3.5" />
+                  <span>自製鍵盤點選</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quiz Topics */}
           <div className="mt-6 space-y-3">
             <label className="text-xs font-bold uppercase tracking-wider text-stone-500">
               選擇測驗範圍
@@ -428,8 +531,8 @@ export const QuizMode: React.FC<QuizModeProps> = ({
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-stone-500" />
               <div>
-                <span className="text-sm font-bold text-stone-800">每題倒數計時（20秒）</span>
-                <p className="text-xs text-stone-400">模擬會考高壓臨場作答節奏</p>
+                <span className="text-sm font-bold text-stone-800">每題倒數計時（25秒）</span>
+                <p className="text-xs text-stone-400">模擬會考臨場高壓作答節奏</p>
               </div>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -451,7 +554,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({
             >
               <Flame className="w-5 h-5 text-amber-300 animate-pulse" />
               <span>
-                開始測驗（{questionFormatMode === 'non_choice' ? '自製鍵盤非選' : '四選一選擇'}・共 {questionCount} 題）
+                開始測驗（{questionFormatMode === 'non_choice' ? (nonChoiceInputStyle === 'handwriting' ? '田字格手寫' : '自製鍵盤') : '四選一'}・共 {questionCount} 題）
               </span>
             </button>
           </div>
@@ -462,8 +565,6 @@ export const QuizMode: React.FC<QuizModeProps> = ({
 
   // 2. ACTIVE QUIZ RUNNER VIEW
   if (isPlaying && currentQ) {
-    const isTimeout = isAnswered && selectedOption === '（逾時未作答）';
-
     return (
       <div className="max-w-3xl mx-auto space-y-4 animate-fade-in">
         {/* Top Progress & Timer Bar */}
@@ -474,7 +575,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({
               第 {currentIndex + 1} / {questions.length} 題
             </span>
             <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-200">
-              {questionFormatMode === 'non_choice' ? '非選擇鍵盤' : '四選一'}
+              {questionFormatMode === 'non_choice'
+                ? nonChoiceInputStyle === 'handwriting'
+                  ? '田字手寫'
+                  : '非選鍵盤'
+                : '四選一'}
             </span>
           </div>
 
@@ -525,53 +630,136 @@ export const QuizMode: React.FC<QuizModeProps> = ({
           )}
 
           {/* =========================================================================
-              MODE A: NON-CHOICE CUSTOM KEYBOARD (避免選字猜答案，自製鍵盤)
+              MODE A: NON-CHOICE (HANDWRITING or KEYBOARD)
              ========================================================================= */}
           {questionFormatMode === 'non_choice' ? (
             <div className="space-y-4 pt-1">
-              {/* Fill-in bracket preview slot */}
-              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-amber-900 uppercase">填答括號：</span>
-                  <div className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-amber-300 font-serif-tc font-black text-2xl text-amber-950 shadow-xs min-w-[5rem] justify-center">
-                    {customKeypadInput || <span className="text-stone-300 animate-pulse font-sans text-lg font-normal">（　）</span>}
+              {/* Toggle bar between Handwriting and Keyboard if character question */}
+              {!isPhoneticQuestion && !isAnswered && !isWaitingHandwritingVerification && (
+                <div className="flex justify-end gap-1.5">
+                  <div className="bg-stone-100 p-1 rounded-xl border border-stone-200 flex text-xs font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setNonChoiceInputStyle('handwriting')}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        nonChoiceInputStyle === 'handwriting'
+                          ? 'bg-amber-700 text-white shadow-2xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      <PenTool className="w-3.5 h-3.5" />
+                      <span>田字格手寫</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNonChoiceInputStyle('keyboard')}
+                      className={`px-3 py-1 rounded-lg transition cursor-pointer flex items-center gap-1 ${
+                        nonChoiceInputStyle === 'keyboard'
+                          ? 'bg-amber-700 text-white shadow-2xs'
+                          : 'text-stone-600 hover:text-stone-900'
+                      }`}
+                    >
+                      <KeyboardIcon className="w-3.5 h-3.5" />
+                      <span>自製鍵盤</span>
+                    </button>
                   </div>
                 </div>
+              )}
 
-                {!isAnswered && (
-                  <span className="text-xs text-stone-500 font-medium">
-                    請點選下方自製無提示鍵盤輸入，完成後按「送出作答」
-                  </span>
-                )}
-              </div>
+              {/* 1. HANDWRITING CANVAS VIEW (田字格手寫作答) */}
+              {nonChoiceInputStyle === 'handwriting' && !isPhoneticQuestion && !isAnswered ? (
+                <div>
+                  {!isWaitingHandwritingVerification ? (
+                    <HandwritingCanvas
+                      onConfirm={handleHandwritingSubmitted}
+                      charPrompt="請以手指或觸控筆在田字格內書寫正體字"
+                    />
+                  ) : (
+                    /* Handwriting self-check panel against standard font */
+                    <div className="p-5 rounded-2xl bg-amber-50/90 border border-amber-300 space-y-4 animate-fade-in">
+                      <div className="text-center space-y-1">
+                        <span className="text-xs font-bold text-amber-800 uppercase tracking-widest block">
+                          手寫筆畫自檢核對
+                        </span>
+                        <h4 className="text-lg font-bold text-stone-900">
+                          教育部標準正字審定為：
+                        </h4>
+                        <div className="my-2 inline-flex items-center justify-center w-24 h-24 bg-white rounded-2xl border-2 border-amber-500 font-serif-tc font-black text-5xl text-amber-950 shadow-md">
+                          {currentQ.correctAnswer}
+                        </div>
+                      </div>
 
-              {/* The Custom Keypad */}
-              {!isAnswered ? (
-                <CustomQuizKeyboard
-                  mode={isPhoneticQuestion ? 'zhuyin' : 'char'}
-                  targetChar={currentQ.correctAnswer}
-                  expectedAnswer={currentQ.correctAnswer}
-                  currentInput={customKeypadInput}
-                  onInputChange={setCustomKeypadInput}
-                  onSubmit={handleCustomKeypadSubmit}
-                  disabled={isAnswered}
-                />
+                      <div className="bg-white/80 p-3.5 rounded-xl border border-amber-200 text-xs text-stone-700 leading-relaxed text-center">
+                        請對照您方才於田字格書寫之字形，確認<strong>部首、筆畫與結構</strong>是否完全正確無誤？
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmHandwritingSelfCheck(true)}
+                          className="py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <Check className="w-4 h-4" />
+                          <span>我寫對了（計 1 分）</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmHandwritingSelfCheck(false)}
+                          className="py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                        >
+                          <X className="w-4 h-4" />
+                          <span>筆畫有誤（記為錯題）</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
-                /* Already answered summary in non-choice */
-                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-stone-500">您的作答：</span>
-                    <span className="font-serif-tc font-bold text-lg text-stone-900">
-                      【{selectedOption || '未輸入'}】
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-bold text-stone-500">標準答案：</span>
-                    <span className="font-serif-tc font-extrabold text-lg text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                      【{currentQ.correctAnswer}】
-                    </span>
-                  </div>
-                </div>
+                /* 2. CUSTOM KEYPAD VIEW */
+                <>
+                  {!isAnswered ? (
+                    <>
+                      <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 flex flex-col sm:flex-row items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-amber-900 uppercase">填答括號：</span>
+                          <div className="inline-flex items-center px-4 py-2 rounded-xl bg-white border border-amber-300 font-serif-tc font-black text-2xl text-amber-950 shadow-xs min-w-[5rem] justify-center">
+                            {customKeypadInput || <span className="text-stone-300 animate-pulse font-sans text-lg font-normal">（　）</span>}
+                          </div>
+                        </div>
+
+                        <span className="text-xs text-stone-500 font-medium">
+                          請點選下方自製無提示鍵盤輸入，完成後按「送出作答」
+                        </span>
+                      </div>
+
+                      <CustomQuizKeyboard
+                        mode={isPhoneticQuestion ? 'zhuyin' : 'char'}
+                        targetChar={currentQ.correctAnswer}
+                        expectedAnswer={currentQ.correctAnswer}
+                        currentInput={customKeypadInput}
+                        onInputChange={setCustomKeypadInput}
+                        onSubmit={handleCustomKeypadSubmit}
+                        disabled={isAnswered}
+                      />
+                    </>
+                  ) : (
+                    /* Answered state */
+                    <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-stone-500">您的作答：</span>
+                        <span className="font-serif-tc font-bold text-lg text-stone-900">
+                          【{selectedOption || '未輸入'}】
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-bold text-stone-500">標準答案：</span>
+                        <span className="font-serif-tc font-extrabold text-lg text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                          【{currentQ.correctAnswer}】
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           ) : (
@@ -634,7 +822,7 @@ export const QuizMode: React.FC<QuizModeProps> = ({
                 <div className="flex items-center gap-2 font-bold mb-1">
                   {normalizeAnswer(selectedOption || '') === normalizeAnswer(currentQ.correctAnswer) ? (
                     <span className="text-emerald-700 flex items-center gap-1">
-                      <Sparkles className="w-4 h-4" /> 答對了！精準命中會考焦點
+                      <Sparkles className="w-4 h-4" /> 答對了！精準掌握會考考點
                     </span>
                   ) : (
                     <span className="text-rose-700">
@@ -692,7 +880,11 @@ export const QuizMode: React.FC<QuizModeProps> = ({
 
         <div>
           <span className="text-xs font-bold text-amber-800 uppercase tracking-widest block mb-1">
-            {questionFormatMode === 'non_choice' ? '非選擇鍵盤測驗結果' : '四選一選擇測驗結果'}
+            {questionFormatMode === 'non_choice'
+              ? nonChoiceInputStyle === 'handwriting'
+                ? '田字格手寫測驗結果'
+                : '非選鍵盤測驗結果'
+              : '四選一選擇測驗結果'}
           </span>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-stone-900 font-serif-tc">
             {getQuizTypeName(quizType)}

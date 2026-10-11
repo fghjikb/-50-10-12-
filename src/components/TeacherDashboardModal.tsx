@@ -19,12 +19,17 @@ import {
   Edit2,
   Save,
   Check,
+  Lock,
+  Unlock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import {
   fetchClassroomOverview,
   StudentProgressSummary,
   fetchClassSettings,
   updateClassSettings,
+  updateQuizLockedStatus,
   fetchStudentAccounts,
   batchCreateStudentAccounts,
   createStudentAccount,
@@ -33,6 +38,7 @@ import {
   StudentAccount,
   ClassSettings,
 } from '../services/firebaseService';
+import { useAuth } from '../context/AuthContext';
 
 interface TeacherDashboardModalProps {
   isOpen: boolean;
@@ -45,6 +51,7 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
   onClose,
   isFirebaseConnected,
 }) => {
+  const { currentUser } = useAuth();
   const [activeTab, setActiveTab] = useState<'analytics' | 'accounts' | 'print_cards'>('analytics');
   const [loading, setLoading] = useState<boolean>(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState<string | null>(null);
@@ -76,6 +83,7 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
   // Quota edit
   const [editingQuota, setEditingQuota] = useState<number>(35);
   const [isSavingQuota, setIsSavingQuota] = useState<boolean>(false);
+  const [showPasswords, setShowPasswords] = useState<boolean>(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -104,7 +112,8 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
     }
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  // Guard: Students cannot access or modify the management roster (學生不可以更改教學管理名冊)
+  if (!isOpen || currentUser?.role !== 'admin') return null;
 
   const totalStudents = summaries.length;
   const totalQuizzes = summaries.reduce((acc, s) => acc + s.totalQuizzes, 0);
@@ -130,6 +139,18 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
       if (gradeTally[q.grade] !== undefined) gradeTally[q.grade]++;
     });
   });
+
+  // Handle quiz lock toggle
+  const handleToggleQuizLock = async () => {
+    const newLock = !classSettings.isQuizLocked;
+    try {
+      await updateQuizLockedStatus(newLock);
+      setClassSettings((prev) => ({ ...prev, isQuizLocked: newLock }));
+      setActionSuccessMsg(newLock ? '已成功關閉測驗功能！學生端將顯示管制中無法進入測驗。' : '已重新開放全班測驗功能！');
+    } catch (e) {
+      alert('切換測驗狀態失敗');
+    }
+  };
 
   // Handle saving quota
   const handleSaveQuota = async () => {
@@ -454,6 +475,68 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
            ========================================================================= */}
         {activeTab === 'accounts' && (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+            {/* 1. QUIZ FEATURE LOCK BANNER (增加把測驗功能關起來模式) */}
+            <div
+              className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition ${
+                classSettings.isQuizLocked
+                  ? 'bg-rose-50/80 border-rose-300 text-rose-950 shadow-xs'
+                  : 'bg-emerald-50/80 border-emerald-300 text-emerald-950 shadow-xs'
+              }`}
+            >
+              <div className="flex items-start sm:items-center gap-3">
+                <div
+                  className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold shadow-xs shrink-0 ${
+                    classSettings.isQuizLocked ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                  }`}
+                >
+                  {classSettings.isQuizLocked ? (
+                    <Lock className="w-5 h-5" />
+                  ) : (
+                    <Unlock className="w-5 h-5" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-sm font-bold flex items-center gap-2 flex-wrap">
+                    <span>會考測驗功能管制模式：</span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-black border ${
+                        classSettings.isQuizLocked
+                          ? 'bg-rose-100 text-rose-800 border-rose-300'
+                          : 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                      }`}
+                    >
+                      {classSettings.isQuizLocked ? '目前已關閉（全班學生無法測驗）' : '目前開放中（全班學生可自主測驗）'}
+                    </span>
+                  </div>
+                  <p className="text-xs opacity-80 mt-1 leading-relaxed">
+                    課堂講解或授課時，老師可一鍵將測驗功能「關閉鎖定」，讓同學專注複習；待指定測驗時段再行解鎖開放。
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleToggleQuizLock}
+                className={`px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs shrink-0 ${
+                  classSettings.isQuizLocked
+                    ? 'bg-emerald-700 hover:bg-emerald-800 text-white'
+                    : 'bg-rose-700 hover:bg-rose-800 text-white'
+                }`}
+              >
+                {classSettings.isQuizLocked ? (
+                  <>
+                    <Unlock className="w-4 h-4" />
+                    <span>一鍵解鎖開放測驗</span>
+                  </>
+                ) : (
+                  <>
+                    <Lock className="w-4 h-4" />
+                    <span>一鍵關閉鎖定測驗</span>
+                  </>
+                )}
+              </button>
+            </div>
+
             {/* Quota Control Banner */}
             <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
@@ -581,14 +664,26 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
             )}
 
             {/* Account Roster Table */}
-            <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden shadow-2xs">
-              <table className="w-full text-left text-xs">
+            <div className="bg-white rounded-2xl border border-stone-200 overflow-x-auto shadow-2xs">
+              <table className="w-full text-left text-xs min-w-[620px]">
                 <thead className="bg-stone-100/80 text-stone-600 font-bold border-b border-stone-200">
                   <tr>
                     <th className="py-3 px-4">座號</th>
                     <th className="py-3 px-4">學生姓名</th>
                     <th className="py-3 px-4">登入帳號</th>
-                    <th className="py-3 px-4">密碼</th>
+                    <th className="py-3 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <span>密碼</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowPasswords(!showPasswords)}
+                          className="p-0.5 rounded text-stone-400 hover:text-stone-700 cursor-pointer"
+                          title={showPasswords ? '隱藏密碼' : '顯示密碼'}
+                        >
+                          {showPasswords ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                    </th>
                     <th className="py-3 px-4 text-center">帳號狀態</th>
                     <th className="py-3 px-4">最後登入</th>
                     <th className="py-3 px-4 text-right">管理操作</th>
@@ -614,7 +709,7 @@ export const TeacherDashboardModal: React.FC<TeacherDashboardModalProps> = ({
                           {acc.username}
                         </td>
                         <td className="py-3 px-4 font-mono text-stone-500">
-                          {acc.password}
+                          {showPasswords ? acc.password : '••••••••'}
                         </td>
                         <td className="py-3 px-4 text-center">
                           <button
