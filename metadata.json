@@ -1,0 +1,6 @@
+{
+  "name": "國文會考字音字形註釋複習測驗系統",
+  "description": "收錄完整會考國文易錯字、常誤用字辨別、形近字詳解、成語字音字形與美食料理讀音，提供遮蔽背誦、字卡翻牌與多元模擬測驗。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
